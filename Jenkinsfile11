@@ -1,41 +1,71 @@
 pipeline {
-  agent any
+    agent any
 
-  stages {
-      stage('Build') {
-      agent {
-        docker { image 'django:latest' }
-      }
-      steps {
-            // Run the Django server in the foreground
-            sh 'python3 manage.py check' 
-            echo 'Django server started. Proceeding to next stage...'
-      }
+    options {
+        skipDefaultCheckout(true)
     }
 
-    stage('Deploy') {
-      steps {
-        // Build the image
-        sh 'docker build -t todo .'
-        
-        // Run the container with a specific name (e.g., 'todo_container')
-        sh 'docker run -d -p 8000:8000 --name todo_container todo'
-      }
-      post {
-        always {
-          echo 'Waiting for 2 minutes before stopping and deleting containers...'
-          // Sleep for 2 minutes before stopping and deleting containers
-          sleep 120
+    stages {
 
-          // Stop the container using its name
-          echo 'Stopping container...'
-          sh 'docker stop todo_container'
+        stage('Code Checkout') {
+            steps {
+                echo 'Starting Code Checkout...'
 
-          // Remove the container
-          echo 'Removing container...'
-          sh 'docker rm todo_container'
+                checkout scm
+
+                script {
+                    def repoURL = sh(
+                        script: 'git config --get remote.origin.url',
+                        returnStdout: true
+                    ).trim()
+
+                    def repoName = repoURL.tokenize('/').last().replace('.git', '')
+
+                    def currentBranch = sh(
+                        script: "git branch -r --contains HEAD | head -n 1 | sed 's|.*origin/||'",
+                        returnStdout: true
+                    ).trim()
+
+                    echo "Repository Name: ${repoName}"
+                    echo "Repository URL: ${repoURL}"
+                    echo "Current Branch: ${currentBranch}"
+                }
+
+                echo 'Workspace Files:'
+                sh 'ls -la'
+            }
         }
-      }
+
+        stage('Build') {
+            agent {
+                docker {
+                    image 'django:latest'
+                }
+            }
+            steps {
+                sh 'python3 manage.py check'
+                echo 'Django server started. Proceeding to next stage...'
+            }
+        }
+
+        stage('Deploy') {
+            steps {
+                sh 'docker build -t todo .'
+
+                sh 'docker run -d -p 8000:8000 --name todo_container todo'
+            }
+            post {
+                always {
+                    echo 'Waiting for 2 minutes before stopping and deleting containers...'
+                    sleep 120
+
+                    echo 'Stopping container...'
+                    sh 'docker stop todo_container'
+
+                    echo 'Removing container...'
+                    sh 'docker rm todo_container'
+                }
+            }
+        }
     }
-  }
 }
