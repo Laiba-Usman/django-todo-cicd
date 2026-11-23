@@ -39,13 +39,14 @@ pipeline {
         stage('Build') {
             agent {
                 docker {
-                    image 'django:latest'
+                    image 'python:3.9-slim'
                     reuseNode true
                 }
             }
             steps {
+                sh 'pip install Django==3.2'
                 sh 'python3 manage.py check'
-                echo 'Django server started. Proceeding to next stage...'
+                echo 'Django project check completed successfully!'
             }
         }
 
